@@ -11,6 +11,7 @@ struct my_options {
 	int calibration_count;
 	float * calibration_values;
 	char ** devices;
+	bool json;
 };
 
 void free_options( struct my_options *options )
@@ -64,6 +65,8 @@ void show_help()
 "                           list of floats, where each one given represents the\n"
 "                           factor for that power of the measured temperature,\n"
 "                           starting at power zero. ( a+b*T+c*T^2+d*T^3 ... )\n"
+"    -j\n"
+"    --json                 Output in JSON.\n"
 	);
 }
 
@@ -75,6 +78,7 @@ struct my_options* parse_options( int argc, char *argv[] )
 		.calibration_count = 0,
 		.calibration_values = NULL,
 		.devices = NULL,
+		.json = false,
 	};
 	char *temp_scale = "Celsius", *calibration_string = NULL;
 	struct option const long_options[] = {
@@ -82,9 +86,10 @@ struct my_options* parse_options( int argc, char *argv[] )
 		{ "enumerate", no_argument, NULL, 'e' },
 		{ "scale", required_argument, NULL, 's' },
 		{ "calibrate-temp", required_argument, NULL, 'c' },
+	    { "json", no_argument, NULL, 'j' },
 		{ NULL, 0, NULL, 0 }
 	};
-	char const * const short_options = "hes:c:";
+	char const * const short_options = "jhes:c:";
 	while ( true )
 	{
 		int opt = getopt_long( argc, argv, short_options, long_options, NULL );
@@ -121,6 +126,10 @@ struct my_options* parse_options( int argc, char *argv[] )
 			case 'c':
 			{
 				calibration_string = optarg;
+			} break;
+			case 'j':
+			{
+				options.json = true;
 			} break;
 		}
 	}
@@ -193,19 +202,33 @@ void print_device_sensor(
 		( type & TEMPERED_SENSOR_TYPE_TEMPERATURE ) &&
 		( type & TEMPERED_SENSOR_TYPE_HUMIDITY )
 	) {
-		printf(
-			"%s %i: temperature %.2f %s"
-				", relative humidity %.1f%%"
-				", dew point %.1f %s\n",
-			tempered_get_device_path( device ), sensor,
-			options->temp_scale->from_celsius( tempC ),
-			options->temp_scale->symbol,
-			rel_hum,
-			options->temp_scale->from_celsius(
-				tempered_util__get_dew_point( tempC, rel_hum )
-			),
-			options->temp_scale->symbol
-		);
+		if (options->json) {
+			printf("{ \"device\": \"%s\", \"sensor\": %i, \"temperature\": %.2f, "
+					"\"scale\": \"%s\", \"relative_humidity\": %.1f, "
+					"\"dew_point\": %.1f }\n",
+					tempered_get_device_path( device ),
+					sensor,
+					options->temp_scale->from_celsius( tempC ),
+					options->temp_scale->symbol,
+					rel_hum,
+					options->temp_scale->from_celsius(tempered_util__get_dew_point( tempC, rel_hum ))
+					);
+		}
+		else {
+			printf(
+				"%s %i: temperature %.2f %s"
+					", relative humidity %.1f%%"
+					", dew point %.1f %s\n",
+				tempered_get_device_path( device ), sensor,
+				options->temp_scale->from_celsius( tempC ),
+				options->temp_scale->symbol,
+				rel_hum,
+				options->temp_scale->from_celsius(
+					tempered_util__get_dew_point( tempC, rel_hum )
+				),
+				options->temp_scale->symbol
+			);
+		}
 	}
 	else if ( type & TEMPERED_SENSOR_TYPE_TEMPERATURE )
 	{
@@ -346,3 +369,5 @@ int main( int argc, char *argv[] )
 	}
 	return 0;
 }
+
+// vim: noexpandtab:shiftwidth=4:tabstop=4:softtabstop=0
